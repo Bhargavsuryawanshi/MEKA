@@ -139,8 +139,8 @@ ollama pull qwen2.5:3b
 
 ### 2. Clone Repository
 ```bash
-git clone https://github.com/yourusername/meka.git
-cd meka
+git clone https://github.com/Bhargavsuryawanshi/MEKA.git
+cd MEKA
 ```
 
 ### 3. Install Python Dependencies
