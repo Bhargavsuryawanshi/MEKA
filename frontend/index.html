@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>MEKA Dashboard</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; padding: 20px; }
+        .container { max-width: 1000px; margin: 0 auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        h1 { color: #1a1a1a; }
+        .input-group { display: flex; gap: 10px; margin-bottom: 20px; }
+        input { flex: 1; padding: 12px; border: 1px solid #ccc; border-radius: 6px; font-size: 16px; }
+        button { padding: 12px 24px; background: #007bff; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 16px; }
+        button:disabled { background: #ccc; }
+        
+        .status-box { margin-bottom: 20px; padding: 15px; border-radius: 6px; background: #e9ecef; }
+        .logs { background: #2d2d2d; color: #00ff00; padding: 15px; border-radius: 6px; font-family: monospace; height: 150px; overflow-y: auto; margin-bottom: 20px; }
+        .result-section { border-top: 2px solid #eee; padding-top: 20px; }
+        .context-item { background: #fff3cd; padding: 10px; margin-bottom: 5px; border-left: 4px solid #ffc107; font-size: 0.9em; }
+        .final-answer { background: #d4edda; padding: 20px; border-radius: 6px; border-left: 5px solid #28a745; white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>MEKA: Multi-Agent Expert Knowledge Assistant</h1>
+        
+        <div class="input-group">
+            <input type="text" id="query" placeholder="Ask a complex question regarding your documents...">
+            <button onclick="startQuery()" id="btn">Ask MEKA</button>
+        </div>
+
+        <div class="status-box">Status: <span id="statusText">Idle</span></div>
+        
+        <h3>Agent Live Logs</h3>
+        <div class="logs" id="logsArea">Waiting for query...</div>
+
+        <div id="resultArea" class="result-section" style="display:none;">
+            <h3>Strategic Plan</h3>
+            <ul id="planList"></ul>
+
+            <h3>Reranked Context (Evidence)</h3>
+            <div id="contextList"></div>
+
+            <h3>Final Answer</h3>
+            <div id="finalAnswer" class="final-answer"></div>
+        </div>
+    </div>
+
+    <script>
+        async function startQuery() {
+            const query = document.getElementById('query').value;
+            if(!query) return;
+
+            document.getElementById('btn').disabled = true;
+            document.getElementById('resultArea').style.display = 'none';
+            document.getElementById('logsArea').innerHTML = "Job submitted...";
+            
+            // 1. Submit Query
+            const res = await fetch('http://127.0.0.1:8000/query', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({query})
+            });
+            const data = await res.json();
+            const jobId = data.job_id;
+
+            // 2. Poll for updates
+            const interval = setInterval(async () => {
+                const statusRes = await fetch(`http://127.0.0.1:8000/status/${jobId}`);
+                const statusData = await statusRes.json();
+
+                document.getElementById('statusText').innerText = statusData.status;
+                
+                // Update Logs
+                const logHtml = statusData.logs.map(l => `> ${l}`).join('<br>');
+                document.getElementById('logsArea').innerHTML = logHtml;
+
+                if (statusData.status === 'completed') {
+                    clearInterval(interval);
+                    document.getElementById('btn').disabled = false;
+                    renderResults(statusData);
+                } else if (statusData.status === 'failed') {
+                    clearInterval(interval);
+                    document.getElementById('btn').disabled = false;
+                    alert("Error: " + statusData.error);
+                }
+            }, 1000);
+        }
+
+        function renderResults(data) {
+            document.getElementById('resultArea').style.display = 'block';
+            
+            // Plan
+            document.getElementById('planList').innerHTML = (data.plan || []).map(p => `<li>${p}</li>`).join('');
+            
+            // Context
+            document.getElementById('contextList').innerHTML = (data.context || []).map(c => 
+                `<div class="context-item">${c.substring(0, 300)}...</div>`
+            ).join('');
+            
+            // Answer
+            document.getElementById('finalAnswer').innerText = data.answer;
+        }
+    </script>
+</body>
+</html>
